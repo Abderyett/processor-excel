@@ -1,0 +1,2 @@
+# odoo_mail
+# insag
