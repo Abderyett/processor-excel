@@ -34,7 +34,7 @@ const FileProcessor: React.FC = () => {
 	const [email, setEmail] = useState<string>('');
 	const [progress, setProgress] = useState<string>('');
 
-	const API_URL = 'https://node-processor.vispera-dz.com/';
+	const API_URL = 'https://node-processor.vispera-dz.com';
 
 	const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files) {
