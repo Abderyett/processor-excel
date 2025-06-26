@@ -194,8 +194,8 @@ const processInsagCneIf = (workbooks) => {
         // Clean phone number - remove p:+ prefix
         if (r.phone_number) r.phone_number = String(r.phone_number).replace(/p:\+|p:/g, '');
 
-        r.source = '__export.utm_source_11_b17eb5a0';
-        r['Equipe commercial'] = '__export.crm_team_6_3cd792db';
+        r.source = '__export__.utm_source_11_b17eb5a0';
+        r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
 
         out.push(r);
       });
