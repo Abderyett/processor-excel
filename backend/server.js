@@ -181,7 +181,7 @@ const processInsagCneIf = (workbooks) => {
         if (r.opportunité && String(r.opportunité).includes('MBA Global CNE-copy'))
           r.opportunité = 'MBA Global CNE';
 
-        r.business_unit = 'insfag_crm_sale.business_unit_diploma_courses';
+        r.bu = 'insfag_crm_sale.business_unit_diploma_courses';
 
         if (r.opportunité === 'MBA Global CNE') {
           r.company = 'insfag_root.secondary_company';
@@ -194,8 +194,8 @@ const processInsagCneIf = (workbooks) => {
         // Clean phone number - remove p:+ prefix
         if (r.phone_number) r.phone_number = String(r.phone_number).replace(/p:\+|p:/g, '');
 
-        r.source = 'export.utm_source_11_b17eb5a0';
-        r['Equipe commercial'] = 'export.crm_team_6_3cd792db';
+        r.source = '__export.utm_source_11_b17eb5a0';
+        r['Equipe commercial'] = '__export.crm_team_6_3cd792db';
 
         out.push(r);
       });
@@ -264,7 +264,7 @@ const processAwareness = (workbooks) => {
         }
 
         // Clean phone number - remove p:+ prefix
-        if (r.phone_number) r.phone_number = String(r.phone_number).replace(/p:\+|p:/g, '');
+        if (r.phone) r.phone = String(r.phone).replace(/p:\+|p:/g, '');
 
         out.push(r);
       });
