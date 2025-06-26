@@ -102,6 +102,7 @@ const processLacInfo = (workbooks) => {
 					'campaign_name',
 					'form_id',
 					'platform',
+					'is_organic'
 				];
 				const r = processRow(row, colsToDelete);
 
@@ -119,11 +120,12 @@ const processLacInfo = (workbooks) => {
 						v.includes('licence informatique') ||
 						v.includes('licence info 2025')
 					)
-						r.opportunité = 'Licence informatique';
+						r.opportunité = 'Licence Informatique';
 					else if (
 						v.includes('lac') ||
 						v.includes('licence commerce') ||
-						v.includes('licence science commerciales')
+						v.includes('licence science commerciales') ||
+						v.includes('Licence Sciences Commerciales Année 25-26') 
 					)
 						r.opportunité = 'Licence Science Commercial et marketing';
 					else if (v.includes('lfc') || v.includes('licence finance'))
