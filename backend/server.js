@@ -45,7 +45,7 @@ if (!process.env.EMAIL_USER || !(process.env.EMAIL_PASS || process.env.EMAIL_PAS
 	throw new Error('EMAIL_USER and EMAIL_PASS (or EMAIL_PASSWORD) must be set in .env');
 }
 
-const transporter = nodemailer.createTransport({
+const transporter = nodemailer.createTransporter({
 	host: 'smtp.gmail.com',
 	port: 465,
 	secure: true, //  TLS
@@ -82,7 +82,7 @@ const processRow = (row, cols) => {
 };
 
 // ────────────────────────────────────────────────────────────────
-//  ▼▼▼  THREE  processing pipelines (unchanged)  ▼▼▼
+//  ▼▼▼  THREE  processing pipelines (updated)  ▼▼▼
 // ────────────────────────────────────────────────────────────────
 const processLacInfo = (workbooks) => {
 	console.log('Processing LAC Info…');
@@ -132,6 +132,10 @@ const processLacInfo = (workbooks) => {
 					else if (v.includes('lfc') || v.includes('licence finance'))
 						r.opportunité = 'Licence Finance et Comptabilité';
 				}
+
+				// Clean phone number - remove p:+ prefix
+				if (r.phone_number) r.phone_number = String(r.phone_number).replace(/p:\+|p:/g, '');
+
 				out.push(r);
 			});
 		});
@@ -186,6 +190,8 @@ const processInsagCneIf = (workbooks) => {
 					r.company = 'base.main_company';
 					r['product cible'] = 'insfag_crm_sale.product_template_emba_sfe';
 				}
+
+				// Clean phone number - remove p:+ prefix
 				if (r.phone_number) r.phone_number = String(r.phone_number).replace(/p:\+|p:/g, '');
 
 				r.source = 'export.utm_source_11_b17eb5a0';
@@ -257,6 +263,7 @@ const processAwareness = (workbooks) => {
 						r.opportunité = 'Master Transformation digital et E-Business';
 				}
 
+				// Clean phone number - remove p:+ prefix
 				if (r.phone_number) r.phone_number = String(r.phone_number).replace(/p:\+|p:/g, '');
 
 				out.push(r);
