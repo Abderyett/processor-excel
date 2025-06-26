@@ -258,7 +258,7 @@ const processAwareness = (workbooks) => {
 						r.opportunité = 'Master Transformation digital et E-Business';
 				}
 
-				if (r.phone_number) r.phone_number = String(r.phone_number).replace(/p:\+|p:/g, '');
+				if (r.phone) r.phone_number = String(r.phone_number).replace(/p:\+|p:/g, '');
 
 				out.push(r);
 			});
