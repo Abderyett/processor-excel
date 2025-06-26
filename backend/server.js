@@ -123,11 +123,12 @@ const processLacInfo = (workbooks) => {
 						r.opportunité = 'Licence Informatique';
 					else if (
 						v.includes('lac') ||
+						v.includes('Licence Sciences Commerciales Année 25-26') ||
 						v.includes('licence commerce') ||
-						v.includes('licence science commerciales') ||
-						v.includes('Licence Sciences Commerciales Année 25-26') 
+						v.includes('licence science commerciales') 
 					)
 						r.opportunité = 'Licence Science Commercial et marketing';
+						
 					else if (v.includes('lfc') || v.includes('licence finance'))
 						r.opportunité = 'Licence Finance et Comptabilité';
 				}
