@@ -45,7 +45,7 @@ if (!process.env.EMAIL_USER || !(process.env.EMAIL_PASS || process.env.EMAIL_PAS
 	throw new Error('EMAIL_USER and EMAIL_PASS (or EMAIL_PASSWORD) must be set in .env');
 }
 
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
 	host: 'smtp.gmail.com',
 	port: 465,
 	secure: true, //  TLS
@@ -82,7 +82,7 @@ const processRow = (row, cols) => {
 };
 
 // ────────────────────────────────────────────────────────────────
-//  ▼▼▼  THREE  processing pipelines (updated)  ▼▼▼
+//  ▼▼▼  THREE  processing pipelines (unchanged)  ▼▼▼
 // ────────────────────────────────────────────────────────────────
 const processLacInfo = (workbooks) => {
 	console.log('Processing LAC Info…');
@@ -102,8 +102,6 @@ const processLacInfo = (workbooks) => {
 					'campaign_name',
 					'form_id',
 					'platform',
-					'is_organic',
-					'lead_status',
 				];
 				const r = processRow(row, colsToDelete);
 
@@ -121,21 +119,17 @@ const processLacInfo = (workbooks) => {
 						v.includes('licence informatique') ||
 						v.includes('licence info 2025')
 					)
-						r.opportunité = 'Licence Informatique';
+						r.opportunité = 'Licence informatique';
 					else if (
 						v.includes('lac') ||
 						v.includes('licence commerce') ||
-						v.includes('licence science commerciales') ||
-						v.includes('Licence Sciences Commerciales Année 25-26')
+						v.includes('licence science commerciales')
 					)
 						r.opportunité = 'Licence Science Commercial et marketing';
 					else if (v.includes('lfc') || v.includes('licence finance'))
 						r.opportunité = 'Licence Finance et Comptabilité';
 				}
-
-				// Clean phone number - remove p:+ prefix
 				if (r.phone_number) r.phone_number = String(r.phone_number).replace(/p:\+|p:/g, '');
-
 				out.push(r);
 			});
 		});
@@ -190,8 +184,6 @@ const processInsagCneIf = (workbooks) => {
 					r.company = 'base.main_company';
 					r['product cible'] = 'insfag_crm_sale.product_template_emba_sfe';
 				}
-
-				// Clean phone number - remove p:+ prefix
 				if (r.phone_number) r.phone_number = String(r.phone_number).replace(/p:\+|p:/g, '');
 
 				r.source = 'export.utm_source_11_b17eb5a0';
@@ -263,7 +255,6 @@ const processAwareness = (workbooks) => {
 						r.opportunité = 'Master Transformation digital et E-Business';
 				}
 
-				// Clean phone number - remove p:+ prefix
 				if (r.phone_number) r.phone_number = String(r.phone_number).replace(/p:\+|p:/g, '');
 
 				out.push(r);
