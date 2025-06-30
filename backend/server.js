@@ -1,6 +1,6 @@
 // ────────────────────────────────────────────────────────────────
 //  server.js  –  File processor + email sender + Compare & Clean
-//               UPDATED: unified phone-column handling
+//               UPDATED (v2): canonical “phone” **and** “full name”
 // ────────────────────────────────────────────────────────────────
 const express      = require('express');
 const multer       = require('multer');
@@ -9,9 +9,9 @@ const nodemailer   = require('nodemailer');
 const cors         = require('cors');
 const dotenv       = require('dotenv');
 
-dotenv.config();          //  Loads .env
-const app   = express();
-const PORT  = process.env.PORT || 3001;
+dotenv.config();
+const app  = express();
+const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
@@ -28,19 +28,16 @@ const upload = multer({
 			'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 			'text/csv',
 		];
-		if (okMime.includes(file.mimetype) || /\.(xlsx?|csv)$/i.test(file.originalname)) {
-			return cb(null, true);
-		}
+		if (okMime.includes(file.mimetype) || /\.(xlsx?|csv)$/i.test(file.originalname)) return cb(null, true);
 		cb(new Error('Invalid file type. Only Excel and CSV files are allowed.'));
 	},
 });
 
 // ────────────────────────────────────────────────────────────────
-//  Mail transporter (Gmail SMTP) – throws if creds missing
+//  Mail transporter (Gmail SMTP)
 // ────────────────────────────────────────────────────────────────
-if (!process.env.EMAIL_USER || !(process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD)) {
+if (!process.env.EMAIL_USER || !(process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD))
 	throw new Error('EMAIL_USER and EMAIL_PASS (or EMAIL_PASSWORD) must be set in .env');
-}
 
 const transporter = nodemailer.createTransport({
 	host  : 'smtp.gmail.com',
@@ -53,20 +50,16 @@ const transporter = nodemailer.createTransport({
 });
 
 // ────────────────────────────────────────────────────────────────
-//  Helper utilities
+//  Helpers
 // ────────────────────────────────────────────────────────────────
 const getTodayDate = () => {
 	const d = new Date();
 	return `${String(d.getDate()).padStart(2, '0')}_${String(d.getMonth() + 1).padStart(2, '0')}_${d.getFullYear()}`;
 };
 
-const readFileAsWorkbook = (buffer, filename) => {
-	try {
-		return XLSX.read(buffer, { type: 'buffer', cellDates: true, cellStyles: true, cellNF: true });
-	} catch (e) {
-		console.error(`Error reading ${filename}:`, e);
-		throw new Error(`Cannot read ${filename}`);
-	}
+const readFileAsWorkbook = (buffer, fn) => {
+	try             { return XLSX.read(buffer, { type: 'buffer', cellDates: true }); }
+	catch (e)       { console.error(`Error reading ${fn}:`, e); throw new Error(`Cannot read ${fn}`); }
 };
 
 const processRow = (row, cols) => {
@@ -76,137 +69,133 @@ const processRow = (row, cols) => {
 };
 
 /*────────────────────────────────────────────────────────────────
-  NEW:  Canonicalise phone column names in a row
+  Canonicalise PHONE
 ────────────────────────────────────────────────────────────────*/
 const normalisePhone = (row) => {
 	const candidates = [
-		'phone_number',
-		'phone',
-		'Phone',
-		'Phone Number',
-		'phone number',
-		'Phone_Number',
-		'PhoneNumber',
+		'phone_number', 'phone', 'Phone', 'Phone Number',
+		'phone number', 'Phone_Number', 'PhoneNumber',
 	];
-
 	const key = candidates.find((k) => row[k] !== undefined && row[k] !== '');
-	if (!key) return row; // nothing to do
+	if (!key) return row;
 
-	// strip prefixes like p:+ or p:
-	const cleaned = String(row[key]).replace(/p:\+|p:/gi, '');
-
-	// set canonical field
-	row.phone_number = cleaned;
-
-	// keep ONLY the canonical version
+	row.phone_number = String(row[key]).replace(/p:\+|p:/gi, '').trim();
 	if (key !== 'phone_number') delete row[key];
 	return row;
 };
 
+/*────────────────────────────────────────────────────────────────
+  Canonicalise FULL NAME
+────────────────────────────────────────────────────────────────*/
+const normaliseFullName = (row) => {
+	const candidates = [
+		'full_name', 'fullname', 'Full Name', 'Full_Name',
+		'full name', 'FullName',
+	];
+	const key = candidates.find((k) => row[k] !== undefined && row[k] !== '');
+	if (!key) return row;
+
+	row.full_name = String(row[key]).trim();
+	if (key !== 'full_name') delete row[key];
+	return row;
+};
+
+/* Helper to apply both normalisations */
+const normaliseRow = (row) => {
+	normalisePhone(row);
+	normaliseFullName(row);
+	return row;
+};
+
 // ────────────────────────────────────────────────────────────────
-//  Extract date from filename & determine newer file
+//  Compare-and-Clean utilities (unchanged except formatting)
 // ────────────────────────────────────────────────────────────────
-const extractDateFromFilename = (filename) => {
-	const m = filename.match(/(\d{2})_(\d{2})(?:_(\d{4}))?/);
+const extractDateFromFilename = (fn) => {
+	const m = fn.match(/(\d{2})_(\d{2})(?:_(\d{4}))?/);
 	if (!m) return null;
-	const [ , day, month, year ] = m;
-	return new Date(parseInt(year || new Date().getFullYear(), 10),
-	                parseInt(month, 10) - 1,
-	                parseInt(day, 10));
+	const [, dd, mm, yyyy] = m;
+	return new Date(parseInt(yyyy || new Date().getFullYear(), 10),
+	                parseInt(mm, 10) - 1,
+	                parseInt(dd, 10));
 };
 
-const determineNewerFile = (file1, file2) => {
-	const d1 = extractDateFromFilename(file1.originalname);
-	const d2 = extractDateFromFilename(file2.originalname);
-	if (!d1 || !d2) return file1; // fallback
-	return d1 > d2 ? file1 : file2;
+const determineNewerFile = (f1, f2) => {
+	const d1 = extractDateFromFilename(f1.originalname);
+	const d2 = extractDateFromFilename(f2.originalname);
+	if (!d1 || !d2) return f1;
+	return d1 > d2 ? f1 : f2;
 };
 
-// ────────────────────────────────────────────────────────────────
-//  Compare & Clean
-// ────────────────────────────────────────────────────────────────
 const compareAndClean = (files) => {
 	if (files.length !== 2) throw new Error('Compare and Clean requires exactly 2 files');
 
-	const [file1, file2] = files;
-	const newerFile = determineNewerFile(file1, file2);
-	const olderFile = newerFile === file1 ? file2 : file1;
+	const [f1, f2] = files;
+	const newer = determineNewerFile(f1, f2);
+	const older = newer === f1 ? f2 : f1;
 
-	const newerWb = readFileAsWorkbook(newerFile.buffer, newerFile.originalname);
-	const olderWb = readFileAsWorkbook(olderFile.buffer, olderFile.originalname);
+	const wbNewer = readFileAsWorkbook(newer.buffer, newer.originalname);
+	const wbOlder = readFileAsWorkbook(older.buffer, older.originalname);
 
-	// collect emails from older file
+	// Collect emails from older file
 	const olderEmails = new Set();
-	olderWb.SheetNames.forEach((sh) => {
-		XLSX.utils.sheet_to_json(olderWb.Sheets[sh], { defval: '' }).forEach((row) => {
+	wbOlder.SheetNames.forEach((sh) => {
+		XLSX.utils.sheet_to_json(wbOlder.Sheets[sh], { defval: '' }).forEach((row) => {
 			const email =
 				row.email || row.Email || row.EMAIL ||
 				row.email_address || row['Email Address'] ||
 				row.mail || row.Mail;
-			if (email && typeof email === 'string' && email.includes('@')) {
+			if (typeof email === 'string' && email.includes('@'))
 				olderEmails.add(email.toLowerCase().trim());
-			}
 		});
 	});
 
-	// clean newer file
-	const cleanedData = [];
+	// Clean newer file
+	const cleaned = [];
 	let dupes = 0, total = 0;
-
-	newerWb.SheetNames.forEach((sh) => {
-		XLSX.utils.sheet_to_json(newerWb.Sheets[sh], { defval: '' }).forEach((row) => {
+	wbNewer.SheetNames.forEach((sh) => {
+		XLSX.utils.sheet_to_json(wbNewer.Sheets[sh], { defval: '' }).forEach((row) => {
 			total++;
 			const email =
 				row.email || row.Email || row.EMAIL ||
 				row.email_address || row['Email Address'] ||
 				row.mail || row.Mail;
-
-			if (email && olderEmails.has(email.toLowerCase().trim())) {
-				dupes++;
-				return; // skip
-			}
-			cleanedData.push(row);
+			if (email && olderEmails.has(email.toLowerCase().trim())) { dupes++; return; }
+			cleaned.push(row);
 		});
 	});
 
-	const cleanedWb = XLSX.utils.book_new();
-	XLSX.utils.book_append_sheet(cleanedWb, XLSX.utils.json_to_sheet(cleanedData), 'Cleaned Data');
-
-	const base   = newerFile.originalname.replace(/\.(xlsx?|csv)$/i, '');
-	const ext    = newerFile.originalname.match(/\.(xlsx?|csv)$/i)?.[0] || '.xlsx';
-	const outName = `${base}_clean${ext}`;
+	const wbOut = XLSX.utils.book_new();
+	XLSX.utils.book_append_sheet(wbOut, XLSX.utils.json_to_sheet(cleaned), 'Cleaned Data');
+	const base = newer.originalname.replace(/\.(xlsx?|csv)$/i, '');
+	const ext  = newer.originalname.match(/\.(xlsx?|csv)$/i)?.[0] || '.xlsx';
 
 	return {
-		filename          : outName,
-		buffer            : XLSX.write(cleanedWb, { type: 'buffer', bookType: 'xlsx', compression: true }),
-		rowCount          : cleanedData.length,
+		filename          : `${base}_clean${ext}`,
+		buffer            : XLSX.write(wbOut, { type: 'buffer', bookType: 'xlsx', compression: true }),
+		rowCount          : cleaned.length,
 		duplicatesRemoved : dupes,
 		totalOriginalRows : total,
-		olderFileName     : olderFile.originalname,
-		newerFileName     : newerFile.originalname,
+		olderFileName     : older.originalname,
+		newerFileName     : newer.originalname,
 	};
 };
 
 // ────────────────────────────────────────────────────────────────
-//  ▼▼▼  THREE existing processing pipelines  ▼▼▼
-//      (all now call normalisePhone  ⬇️)
+//  ▼▼▼  THREE pipelines (each now uses normaliseRow) ▼▼▼
 // ────────────────────────────────────────────────────────────────
-const processLacInfo = (workbooks) => {
+const processLacInfo = (wbs) => {
 	const out = [];
-	workbooks.forEach((wb) => {
+	wbs.forEach((wb) => {
 		wb.SheetNames.forEach((sheet) => {
 			XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: '' }).forEach((row) => {
-				const colsToDelete = [
+				const r = processRow(row, [
 					'id','created_time','ad_id','ad_name','adset_id','adset_name',
 					'campaign_id','campaign_name','form_id','platform','is_organic','lead_status',
-				];
-				const r = processRow(row, colsToDelete);
+				]);
 
 				r.Type = 'Piste';
-				if (r.form_name !== undefined) {
-					r.opportunité = r.form_name;
-					delete r.form_name;
-				}
+				if (r.form_name !== undefined) { r.opportunité = r.form_name; delete r.form_name; }
+
 				if (r.opportunité) {
 					const v = String(r.opportunité).toLowerCase();
 					if (v.includes('linfo') || v.includes('licence info') || v.includes('licence informatique') || v.includes('licence info 2025'))
@@ -217,7 +206,7 @@ const processLacInfo = (workbooks) => {
 						r.opportunité = 'Licence Finance et Comptabilité';
 				}
 
-				normalisePhone(r);               // << unified phone handling
+				normaliseRow(r);
 				out.push(r);
 			});
 		});
@@ -232,35 +221,30 @@ const processLacInfo = (workbooks) => {
 	};
 };
 
-const processInsagCneIf = (workbooks) => {
+const processInsagCneIf = (wbs) => {
 	const out = [];
-	workbooks.forEach((wb) => {
+	wbs.forEach((wb) => {
 		wb.SheetNames.forEach((sheet) => {
 			XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: '' }).forEach((row) => {
-				const colsToDelete = [
+				const r = processRow(row, [
 					'id','created_time','ad_id','ad_name','adset_id','adset_name',
 					'campaign_id','campaign_name','form_id','is_organic','platform',
-				];
-				const r = processRow(row, colsToDelete);
+				]);
 
-				if (r.form_name !== undefined) {
-					r.opportunité = r.form_name;
-					delete r.form_name;
-				}
+				if (r.form_name !== undefined) { r.opportunité = r.form_name; delete r.form_name; }
 				if (r.opportunité && String(r.opportunité).includes('MBA Global CNE-copy'))
 					r.opportunité = 'MBA Global CNE';
 
 				r.bu = 'insfag_crm_sale.business_unit_diploma_courses';
-
 				if (r.opportunité === 'MBA Global CNE') {
-					r.company        = 'insfag_root.secondary_company';
+					r.company = 'insfag_root.secondary_company';
 					r['product cible'] = 'insfag_crm_sale.product_template_mba_mos';
 				} else if (String(r.opportunité || '').includes('Exécutive MBA Finance')) {
-					r.company        = 'base.main_company';
+					r.company = 'base.main_company';
 					r['product cible'] = 'insfag_crm_sale.product_template_emba_sfe';
 				}
 
-				normalisePhone(r);               // << unified phone handling
+				normaliseRow(r);
 				r.source = '__export__.utm_source_11_b17eb5a0';
 				r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
 				out.push(r);
@@ -277,16 +261,15 @@ const processInsagCneIf = (workbooks) => {
 	};
 };
 
-const processAwareness = (workbooks) => {
+const processAwareness = (wbs) => {
 	const out = [];
-	workbooks.forEach((wb) => {
+	wbs.forEach((wb) => {
 		wb.SheetNames.forEach((sheet) => {
 			XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: '' }).forEach((row) => {
-				const colsToDelete = [
+				const r = processRow(row, [
 					'id','created_time','ad_id','ad_name','adset_id','adset_name',
 					'campaign_id','campaign_name','form_id','form_name','is_organic',
-				];
-				const r = processRow(row, colsToDelete);
+				]);
 
 				if (r.platform !== undefined) { r.Type = 'Piste'; delete r.platform; }
 
@@ -307,7 +290,7 @@ const processAwareness = (workbooks) => {
 						r.opportunité = 'Master Transformation digital et E-Business';
 				}
 
-				normalisePhone(r);               // << unified phone handling
+				normaliseRow(r);
 				out.push(r);
 			});
 		});
@@ -323,7 +306,7 @@ const processAwareness = (workbooks) => {
 };
 
 // ────────────────────────────────────────────────────────────────
-//  Attachment helper
+//  Attachments + API
 // ────────────────────────────────────────────────────────────────
 const makeAttachment = ({ filename, buffer }) => ({
 	filename,
@@ -332,33 +315,28 @@ const makeAttachment = ({ filename, buffer }) => ({
 	contentType : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 });
 
-// ────────────────────────────────────────────────────────────────
-//  POST /api/process
-// ────────────────────────────────────────────────────────────────
 app.post('/api/process', upload.array('files'), async (req, res) => {
 	try {
-		const files  = req.files;
-		const opts   = JSON.parse(req.body.options || '{}');
-		const email  = req.body.email;
+		const files = req.files;
+		const opts  = JSON.parse(req.body.options || '{}');
+		const email = req.body.email;
 
-		if (!files?.length) return res.status(400).json({ error: 'No files uploaded' });
-		if (!/@/.test(email || '')) return res.status(400).json({ error: 'Valid email required' });
+		if (!files?.length)  return res.status(400).json({ error: 'No files uploaded' });
+		if (!/@/.test(email||'')) return res.status(400).json({ error: 'Valid email required' });
 
 		const processed = [];
 		const summary   = [];
 
-		if (opts.compareAndClean) {                    // ---- Compare & Clean
-			if (files.length !== 2)
-				return res.status(400).json({ error: 'Compare and Clean requires exactly 2 files' });
+		if (opts.compareAndClean) {
+			if (files.length !== 2) return res.status(400).json({ error: 'Compare and Clean requires exactly 2 files' });
 			const r = compareAndClean(files);
 			processed.push(r);
-			summary.push(`Compare & Clean: ${r.duplicatesRemoved} duplicates removed from ${r.totalOriginalRows} rows (final ${r.rowCount} rows)`);
-		} else {                                       // ---- Regular pipelines
+			summary.push(`Compare & Clean → ${r.duplicatesRemoved} duplicates removed (${r.rowCount}/${r.totalOriginalRows} rows kept)`);
+		} else {
 			const wbs = files.map((f) => readFileAsWorkbook(f.buffer, f.originalname));
-
-			if (opts.lacInfo)   { const r = processLacInfo(wbs);      processed.push(r); summary.push(`LAC Info: ${r.rowCount} rows`); }
-			if (opts.insagCneIf){ const r = processInsagCneIf(wbs);   processed.push(r); summary.push(`Insag CNE IF: ${r.rowCount} rows`); }
-			if (opts.awareness) { const r = processAwareness(wbs);    processed.push(r); summary.push(`Awareness: ${r.rowCount} rows`); }
+			if (opts.lacInfo)    { const r = processLacInfo(wbs);    processed.push(r); summary.push(`LAC Info: ${r.rowCount} rows`); }
+			if (opts.insagCneIf) { const r = processInsagCneIf(wbs); processed.push(r); summary.push(`Insag CNE IF: ${r.rowCount} rows`); }
+			if (opts.awareness)  { const r = processAwareness(wbs);  processed.push(r); summary.push(`Awareness: ${r.rowCount} rows`); }
 		}
 
 		if (!processed.length) return res.status(400).json({ error: 'No processing option selected' });
@@ -379,9 +357,10 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 });
 
 // ────────────────────────────────────────────────────────────────
-//  Health & global error handling
+//  Health + global error handler
 // ────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'OK', timestamp: new Date().toISOString() }));
+
 app.use((err, _req, res, _next) => {
 	if (err instanceof multer.MulterError) {
 		if (err.code === 'LIMIT_FILE_SIZE')  return res.status(400).json({ error: 'File too large (max 50 MB)' });
@@ -393,4 +372,4 @@ app.use((err, _req, res, _next) => {
 // ────────────────────────────────────────────────────────────────
 //  Boot
 // ────────────────────────────────────────────────────────────────
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀  Server running on port ${PORT}`));
