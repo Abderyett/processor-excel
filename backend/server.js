@@ -1,6 +1,6 @@
 // ────────────────────────────────────────────────────────────────
 //  server.js  –  File processor + email sender + Compare & Clean
-//               UPDATED (v2): canonical “phone” **and** “full name”
+//               UPDATED (v2): canonical "phone" **and** "full name"
 // ────────────────────────────────────────────────────────────────
 const express      = require('express');
 const multer       = require('multer');
@@ -69,7 +69,7 @@ const processRow = (row, cols) => {
 };
 
 /*────────────────────────────────────────────────────────────────
-  Canonicalise PHONE
+  Canonicalise PHONE - UPDATED WITH NEW FORMATTING
 ────────────────────────────────────────────────────────────────*/
 const normalisePhone = (row) => {
 	const candidates = [
@@ -79,8 +79,43 @@ const normalisePhone = (row) => {
 	const key = candidates.find((k) => row[k] !== undefined && row[k] !== '');
 	if (!key) return row;
 
-	row.phone_number = String(row[key]).replace(/p:\+|p:/gi, '').trim();
-	if (key !== 'phone_number') delete row[key];
+	// Get the raw phone number and clean it
+	let phone = String(row[key])
+		.replace(/p:\+|p:/gi, '')  // Remove existing prefixes
+		.replace(/\D/g, '')        // Remove all non-digit characters
+		.trim();
+
+	// Remove any country code prefixes
+	if (phone.startsWith('033')) {
+		phone = phone.slice(3);  // Remove 033
+	} else if (phone.startsWith('33')) {
+		phone = phone.slice(2);  // Remove 33
+	} else if (phone.startsWith('213')) {
+		phone = phone.slice(3);  // Remove 213
+	} else if (phone.startsWith('1')) {
+		phone = phone.slice(1);  // Remove any other single digit country code
+	}
+	
+	// Add leading 0 if the number doesn't start with 0 and has 9 digits
+	if (phone.length === 9 && !phone.startsWith('0')) {
+		phone = '0' + phone;
+	}
+	
+	// Format to 0770 555 999 pattern (for 10 digits)
+	if (phone.length === 10) {
+		phone = `${phone.slice(0, 4)} ${phone.slice(4, 7)} ${phone.slice(7)}`;
+	}
+	
+	// Only update if we have a valid formatted number
+	if (phone.length > 0) {
+		row.phone_number = phone;
+	}
+	
+	// Remove the original field if it's different from our canonical field
+	if (key !== 'phone_number') {
+		delete row[key];
+	}
+	
 	return row;
 };
 
