@@ -39,7 +39,7 @@ const upload = multer({
 if (!process.env.EMAIL_USER || !(process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD))
 	throw new Error('EMAIL_USER and EMAIL_PASS (or EMAIL_PASSWORD) must be set in .env');
 
-const transporter = nodemailer.createTransport({
+const transporter = nodemailer.createTransporter({
 	host  : 'smtp.gmail.com',
 	port  : 465,
 	secure: true,
@@ -271,17 +271,31 @@ const processInsagCneIf = (wbs) => {
 					r.opportunité = 'MBA Global CNE';
 
 				r.bu = 'insfag_crm_sale.business_unit_diploma_courses';
+				
+				// Handle different MBA Global opportunities
 				if (r.opportunité === 'MBA Global CNE') {
 					r.company = 'insfag_root.secondary_company';
 					r['product cible'] = 'insfag_crm_sale.product_template_mba_mos';
+				} else if (String(r.opportunité || '').includes('MBA Global Octobre 24') || 
+				           String(r.opportunité || '').includes('MBA Global Alger')) {
+					r.company = 'base.main_company';
+					r.source = '__export__.utm_source_11_b17eb5a0';
+					r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
 				} else if (String(r.opportunité || '').includes('Exécutive MBA Finance')) {
 					r.company = 'base.main_company';
 					r['product cible'] = 'insfag_crm_sale.product_template_emba_sfe';
 				}
 
 				normaliseRow(r);
-				r.source = '__export__.utm_source_11_b17eb5a0';
-				r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
+				
+				// Set default source and equipe commercial for all records if not already set
+				if (!r.source) {
+					r.source = '__export__.utm_source_11_b17eb5a0';
+				}
+				if (!r['Equipe commercial']) {
+					r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
+				}
+				
 				out.push(r);
 			});
 		});
