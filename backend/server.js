@@ -39,7 +39,7 @@ const upload = multer({
 if (!process.env.EMAIL_USER || !(process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD))
 	throw new Error('EMAIL_USER and EMAIL_PASS (or EMAIL_PASSWORD) must be set in .env');
 
-const transporter = nodemailer.createTransport({
+const createTransporter = nodemailer.createTransporter({
 	host  : 'smtp.gmail.com',
 	port  : 465,
 	secure: true,
@@ -266,13 +266,31 @@ const processInsagCneIf = (wbs) => {
 					'campaign_id','campaign_name','form_id','is_organic','platform',
 				]);
 
-				if (r.form_name !== undefined) { r.opportunité = r.form_name; delete r.form_name; }
-				if (r.opportunité && String(r.opportunité).includes('MBA Global CNE-copy'))
-					r.opportunité = 'MBA Global CNE';
+				if (r.form_name !== undefined) { 
+					r.opportunité = r.form_name; 
+					delete r.form_name; 
+				}
+
+				// Fix naming conventions
+				if (r.opportunité) {
+					let opp = String(r.opportunité);
+					
+					// Change CNE to MBA Global CNE
+					if (opp.includes('MBA Global CNE-copy')) {
+						r.opportunité = 'MBA Global CNE';
+					} else if (opp === 'CNE') {
+						r.opportunité = 'MBA Global CNE';
+					}
+					
+					// Change MBA Global Octobre to MBA Global Alger
+					if (opp.includes('MBA Global Octobre')) {
+						r.opportunité = 'MBA Global Alger';
+					}
+				}
 
 				r.bu = 'insfag_crm_sale.business_unit_diploma_courses';
 				
-				// Handle different MBA Global opportunities
+				// Handle different MBA Global opportunities with proper product targets
 				if (r.opportunité === 'MBA Global CNE') {
 					r.company = 'insfag_root.secondary_company';
 					r['product cible'] = 'insfag_crm_sale.product_template_mba_mos';
@@ -281,6 +299,7 @@ const processInsagCneIf = (wbs) => {
 					r.company = 'base.main_company';
 					r.source = '__export__.utm_source_11_b17eb5a0';
 					r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
+					r['product cible'] = 'insfag_crm_sale.product_template_mba_mos';  // Fixed: Added missing product target
 				} else if (String(r.opportunité || '').includes('Exécutive MBA Finance')) {
 					r.company = 'base.main_company';
 					r['product cible'] = 'insfag_crm_sale.product_template_emba_sfe';
@@ -364,6 +383,10 @@ const makeAttachment = ({ filename, buffer }) => ({
 	contentType : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 });
 
+const createTransport = async () => {
+	return await createTransporter.verify();
+};
+
 app.post('/api/process', upload.array('files'), async (req, res) => {
 	try {
 		const files = req.files;
@@ -390,7 +413,7 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 
 		if (!processed.length) return res.status(400).json({ error: 'No processing option selected' });
 
-		await transporter.sendMail({
+		await createTransporter.sendMail({
 			from       : `File Processor <${process.env.EMAIL_USER}>`,
 			to         : email,
 			subject    : opts.compareAndClean ? 'Cleaned Excel file' : 'Processed Excel files',
