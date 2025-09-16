@@ -39,7 +39,7 @@ const upload = multer({
 if (!process.env.EMAIL_USER || !(process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD))
 	throw new Error('EMAIL_USER and EMAIL_PASS (or EMAIL_PASSWORD) must be set in .env');
 
-const createTransporter = nodemailer.createTransporter({
+const createTransporter = nodemailer.createTransport({
 	host  : 'smtp.gmail.com',
 	port  : 465,
 	secure: true,
