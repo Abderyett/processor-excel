@@ -1,6 +1,6 @@
 // ────────────────────────────────────────────────────────────────
 //  server.js  –  File processor + email sender + Compare & Clean
-//               UPDATED (v2): canonical "phone" **and** "full name"
+//               UPDATED (v3): Fixed CORS + Enhanced Error Handling
 // ────────────────────────────────────────────────────────────────
 const express      = require('express');
 const multer       = require('multer');
@@ -13,7 +13,40 @@ dotenv.config();
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+// ────────────────────────────────────────────────────────────────
+//  Enhanced CORS Configuration
+// ────────────────────────────────────────────────────────────────
+const corsOptions = {
+  origin: [
+    'https://processor.vispera-dz.com',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:3001',
+    // Add any other frontend domains you might use
+  ],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200, // For legacy browser support
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.get('origin')}`);
+  next();
+});
+
 app.use(express.json());
 
 // ────────────────────────────────────────────────────────────────
@@ -34,7 +67,7 @@ const upload = multer({
 });
 
 // ────────────────────────────────────────────────────────────────
-//  Mail transporter (Gmail SMTP)
+//  Mail transporter (Gmail SMTP) - Enhanced
 // ────────────────────────────────────────────────────────────────
 if (!process.env.EMAIL_USER || !(process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD))
 	throw new Error('EMAIL_USER and EMAIL_PASS (or EMAIL_PASSWORD) must be set in .env');
@@ -47,7 +80,20 @@ const createTransporter = nodemailer.createTransport({
 		user: process.env.EMAIL_USER,
 		pass: process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD,
 	},
+	// Add connection timeout
+	connectionTimeout: 60000, // 1 minute
+	socketTimeout: 60000,     // 1 minute
 });
+
+// Test email connection on startup
+const testEmailConnection = async () => {
+  try {
+    await createTransporter.verify();
+    console.log('✅ Email transporter verified');
+  } catch (error) {
+    console.error('❌ Email transporter verification failed:', error.message);
+  }
+};
 
 // ────────────────────────────────────────────────────────────────
 //  Helpers
@@ -143,7 +189,7 @@ const normaliseRow = (row) => {
 };
 
 // ────────────────────────────────────────────────────────────────
-//  Compare-and-Clean utilities (unchanged except formatting)
+//  Compare-and-Clean utilities
 // ────────────────────────────────────────────────────────────────
 const extractDateFromFilename = (fn) => {
 	const m = fn.match(/(\d{2})_(\d{2})(?:_(\d{4}))?/);
@@ -299,7 +345,7 @@ const processInsagCneIf = (wbs) => {
 					r.company = 'base.main_company';
 					r.source = '__export__.utm_source_11_b17eb5a0';
 					r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
-					r['product cible'] = 'insfag_crm_sale.product_template_mba_mos';  // Fixed: Added missing product target
+					r['product cible'] = 'insfag_crm_sale.product_template_mba_mos';
 				} else if (String(r.opportunité || '').includes('Exécutive MBA Finance')) {
 					r.company = 'base.main_company';
 					r['product cible'] = 'insfag_crm_sale.product_template_emba_sfe';
@@ -383,36 +429,74 @@ const makeAttachment = ({ filename, buffer }) => ({
 	contentType : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 });
 
-const createTransport = async () => {
-	return await createTransporter.verify();
-};
-
+// ────────────────────────────────────────────────────────────────
+//  Enhanced API Route with better error handling
+// ────────────────────────────────────────────────────────────────
 app.post('/api/process', upload.array('files'), async (req, res) => {
+	// Set timeout for long-running operations
+	req.setTimeout(300000); // 5 minutes
+	
 	try {
+		console.log('Processing request:', {
+			filesCount: req.files?.length || 0,
+			email: req.body.email ? 'provided' : 'missing',
+			options: req.body.options || 'none'
+		});
+
 		const files = req.files;
 		const opts  = JSON.parse(req.body.options || '{}');
 		const email = req.body.email;
 
-		if (!files?.length)  return res.status(400).json({ error: 'No files uploaded' });
-		if (!/@/.test(email||'')) return res.status(400).json({ error: 'Valid email required' });
+		if (!files?.length) {
+			console.log('Error: No files uploaded');
+			return res.status(400).json({ error: 'No files uploaded' });
+		}
+		
+		if (!/@/.test(email||'')) {
+			console.log('Error: Invalid email');
+			return res.status(400).json({ error: 'Valid email required' });
+		}
 
 		const processed = [];
 		const summary   = [];
 
 		if (opts.compareAndClean) {
-			if (files.length !== 2) return res.status(400).json({ error: 'Compare and Clean requires exactly 2 files' });
+			if (files.length !== 2) {
+				console.log('Error: Compare and Clean requires exactly 2 files');
+				return res.status(400).json({ error: 'Compare and Clean requires exactly 2 files' });
+			}
+			console.log('Processing compare and clean...');
 			const r = compareAndClean(files);
 			processed.push(r);
 			summary.push(`Compare & Clean → ${r.duplicatesRemoved} duplicates removed (${r.rowCount}/${r.totalOriginalRows} rows kept)`);
 		} else {
 			const wbs = files.map((f) => readFileAsWorkbook(f.buffer, f.originalname));
-			if (opts.lacInfo)    { const r = processLacInfo(wbs);    processed.push(r); summary.push(`LAC Info: ${r.rowCount} rows`); }
-			if (opts.insagCneIf) { const r = processInsagCneIf(wbs); processed.push(r); summary.push(`Insag CNE IF: ${r.rowCount} rows`); }
-			if (opts.awareness)  { const r = processAwareness(wbs);  processed.push(r); summary.push(`Awareness: ${r.rowCount} rows`); }
+			if (opts.lacInfo)    { 
+				console.log('Processing LAC Info...');
+				const r = processLacInfo(wbs);    
+				processed.push(r); 
+				summary.push(`LAC Info: ${r.rowCount} rows`); 
+			}
+			if (opts.insagCneIf) { 
+				console.log('Processing Insag CNE IF...');
+				const r = processInsagCneIf(wbs); 
+				processed.push(r); 
+				summary.push(`Insag CNE IF: ${r.rowCount} rows`); 
+			}
+			if (opts.awareness)  { 
+				console.log('Processing Awareness...');
+				const r = processAwareness(wbs);  
+				processed.push(r); 
+				summary.push(`Awareness: ${r.rowCount} rows`); 
+			}
 		}
 
-		if (!processed.length) return res.status(400).json({ error: 'No processing option selected' });
+		if (!processed.length) {
+			console.log('Error: No processing option selected');
+			return res.status(400).json({ error: 'No processing option selected' });
+		}
 
+		console.log('Sending email with attachments...');
 		await createTransporter.sendMail({
 			from       : `File Processor <${process.env.EMAIL_USER}>`,
 			to         : email,
@@ -421,9 +505,10 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 			attachments: processed.map(makeAttachment),
 		});
 
+		console.log('Email sent successfully');
 		res.json({ success: true, filesProcessed: processed.length, details: summary });
 	} catch (err) {
-		console.error(err);
+		console.error('Processing error:', err);
 		res.status(500).json({ error: err.message });
 	}
 });
@@ -431,9 +516,17 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 // ────────────────────────────────────────────────────────────────
 //  Health + global error handler
 // ────────────────────────────────────────────────────────────────
-app.get('/health', (_req, res) => res.json({ status: 'OK', timestamp: new Date().toISOString() }));
+app.get('/health', (_req, res) => {
+	res.json({ 
+		status: 'OK', 
+		timestamp: new Date().toISOString(),
+		cors: 'enabled',
+		email: process.env.EMAIL_USER ? 'configured' : 'missing'
+	});
+});
 
 app.use((err, _req, res, _next) => {
+	console.error('Global error handler:', err);
 	if (err instanceof multer.MulterError) {
 		if (err.code === 'LIMIT_FILE_SIZE')  return res.status(400).json({ error: 'File too large (max 50 MB)' });
 		if (err.code === 'LIMIT_FILE_COUNT') return res.status(400).json({ error: 'Too many files (max 10)' });
@@ -442,6 +535,41 @@ app.use((err, _req, res, _next) => {
 });
 
 // ────────────────────────────────────────────────────────────────
-//  Boot
+//  Enhanced Server Startup
 // ────────────────────────────────────────────────────────────────
-app.listen(PORT, () => console.log(`🚀  Server running on port ${PORT}`));
+const startServer = async () => {
+  try {
+    // Test email connection
+    await testEmailConnection();
+    
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📧 Email configured for: ${process.env.EMAIL_USER}`);
+      console.log(`🌍 CORS enabled for production domains`);
+      console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+    });
+
+    // Graceful shutdown handling
+    process.on('SIGTERM', () => {
+      console.log('SIGTERM received, shutting down gracefully');
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    });
+
+    process.on('SIGINT', () => {
+      console.log('SIGINT received, shutting down gracefully');
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    });
+
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
