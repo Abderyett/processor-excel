@@ -13,7 +13,40 @@ dotenv.config();
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+// ────────────────────────────────────────────────────────────────
+//  Enhanced CORS Configuration
+// ────────────────────────────────────────────────────────────────
+const corsOptions = {
+  origin: [
+    'https://processor.vispera-dz.com',
+    'https://node-processor.vispera-dz.com',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:3001',
+  ],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.get('origin')}`);
+  next();
+});
+
 app.use(express.json());
 
 // ────────────────────────────────────────────────────────────────
