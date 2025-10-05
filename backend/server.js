@@ -9,6 +9,9 @@ const nodemailer = require('nodemailer');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
+// Fix for path-to-regexp error
+process.env.DEBUG = '';
+
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -632,7 +635,13 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 			attachments: processed.map(makeAttachment),
 		};
 
-		await transporter.sendMail(mailOptions);
+		// Send email with timeout
+		const emailPromise = transporter.sendMail(mailOptions);
+		const timeoutPromise = new Promise((_, reject) => 
+			setTimeout(() => reject(new Error('Email timeout after 30 seconds')), 30000)
+		);
+		
+		await Promise.race([emailPromise, timeoutPromise]);
 
 		const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 		console.log(`✅ Email sent successfully in ${duration}s`);
