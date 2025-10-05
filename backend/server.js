@@ -461,13 +461,20 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 
 		if (!processed.length) return res.status(400).json({ error: 'No processing option selected' });
 
-		await transporter.sendMail({
+		// Send email with timeout
+		const emailPromise = transporter.sendMail({
 			from       : `File Processor <${process.env.EMAIL_USER}>`,
 			to         : email,
 			subject    : opts.compareAndClean ? 'Cleaned Excel file' : 'Processed Excel files',
 			html       : `<p>Your files have been processed:</p><ul>${summary.map((s)=>`<li>${s}</li>`).join('')}</ul>`,
 			attachments: processed.map(makeAttachment),
 		});
+		
+		const timeoutPromise = new Promise((_, reject) => 
+			setTimeout(() => reject(new Error('Email timeout after 30 seconds')), 30000)
+		);
+		
+		await Promise.race([emailPromise, timeoutPromise]);
 
 		res.json({ success: true, filesProcessed: processed.length, details: summary });
 	} catch (err) {
