@@ -13,13 +13,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Simple CORS - allow all origins for now
 app.use(cors({
-	origin: [
-		'https://processor.vispera-dz.com',
-		'http://localhost:3000',
-		'http://localhost:5173',
-		'http://localhost:5174'
-	],
+	origin: true,
 	credentials: true,
 	methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 	allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
