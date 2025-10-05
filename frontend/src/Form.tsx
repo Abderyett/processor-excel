@@ -52,7 +52,7 @@ const FileProcessor: React.FC = () => {
 	const [progress, setProgress] = useState<string>('');
 
 	// 👉  UPDATE HERE if you deploy the API somewhere else
-	const API_URL = 'https://node-processor.vispera-dz.com';
+	const API_URL = 'http://YOUR_VPS_IP:3001';
 
 	/* ────────────────────────────────  File handlers  */
 	const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
