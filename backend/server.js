@@ -563,15 +563,22 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 	req.setTimeout(300000); // 5 minutes
 	
 	try {
+		console.log('Processing request started');
 		const files = req.files;
 		const opts = JSON.parse(req.body.options || '{}');
 		const email = req.body.email;
+
+		console.log('Files received:', files?.length || 0);
+		console.log('Options:', opts);
+		console.log('Email:', email);
 
 		if (!files?.length) return res.status(400).json({ error: 'No files uploaded' });
 		if (!/@/.test(email || '')) return res.status(400).json({ error: 'Valid email required' });
 
 		const processed = [];
 		const summary = [];
+
+		console.log('Starting file processing...');
 
 		if (opts.compareAndClean) {
 			if (files.length !== 2)
@@ -582,21 +589,30 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 				`Compare & Clean → ${r.duplicatesRemoved} duplicates removed (${r.rowCount}/${r.totalOriginalRows} rows kept)`
 			);
 		} else {
+			console.log('Reading workbooks...');
 			const wbs = files.map((f) => readFileAsWorkbook(f.buffer, f.originalname));
+			console.log('Workbooks read successfully');
+			
 			if (opts.lacInfo) {
+				console.log('Processing LAC Info...');
 				const r = processLacInfo(wbs);
 				processed.push(r);
 				summary.push(`LAC Info: ${r.rowCount} rows`);
+				console.log('LAC Info processed');
 			}
 			if (opts.insagCneIf) {
+				console.log('Processing Insag CNE IF...');
 				const r = processInsagCneIf(wbs);
 				processed.push(r);
 				summary.push(`Insag CNE IF: ${r.rowCount} rows`);
+				console.log('Insag CNE IF processed');
 			}
 			if (opts.awareness) {
+				console.log('Processing Awareness...');
 				const r = processAwareness(wbs);
 				processed.push(r);
 				summary.push(`Awareness: ${r.rowCount} rows`);
+				console.log('Awareness processed');
 			}
 		}
 
@@ -628,6 +644,11 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 //  Health + global error handler
 // ────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'OK', timestamp: new Date().toISOString() }));
+
+app.get('/test', (_req, res) => {
+	console.log('Test endpoint hit');
+	res.json({ message: 'Server is working', timestamp: new Date().toISOString() });
+});
 
 app.use((err, _req, res, _next) => {
 	if (err instanceof multer.MulterError) {
