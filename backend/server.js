@@ -559,6 +559,9 @@ const createTransport = async () => {
 };
 
 app.post('/api/process', upload.array('files'), async (req, res) => {
+	// Set timeout for long processing
+	req.setTimeout(300000); // 5 minutes
+	
 	try {
 		const files = req.files;
 		const opts = JSON.parse(req.body.options || '{}');
@@ -599,13 +602,20 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 
 		if (!processed.length) return res.status(400).json({ error: 'No processing option selected' });
 
-		await createTransporter.sendMail({
-			from: `File Processor <${process.env.EMAIL_USER}>`,
-			to: email,
-			subject: opts.compareAndClean ? 'Cleaned Excel file' : 'Processed Excel files',
-			html: `<p>Your files have been processed:</p><ul>${summary.map((s) => `<li>${s}</li>`).join('')}</ul>`,
-			attachments: processed.map(makeAttachment),
-		});
+		try {
+			console.log('Sending email to:', email);
+			await createTransporter.sendMail({
+				from: `File Processor <${process.env.EMAIL_USER}>`,
+				to: email,
+				subject: opts.compareAndClean ? 'Cleaned Excel file' : 'Processed Excel files',
+				html: `<p>Your files have been processed:</p><ul>${summary.map((s) => `<li>${s}</li>`).join('')}</ul>`,
+				attachments: processed.map(makeAttachment),
+			});
+			console.log('Email sent successfully');
+		} catch (emailError) {
+			console.error('Email sending failed:', emailError);
+			return res.status(500).json({ error: 'Processing completed but email delivery failed. Please check your email settings.' });
+		}
 
 		res.json({ success: true, filesProcessed: processed.length, details: summary });
 	} catch (err) {
