@@ -13,7 +13,24 @@ dotenv.config();
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+const allowedOrigins = new Set([
+	'http://localhost:5173',
+	'http://127.0.0.1:5173',
+	'https://processor.vispera-dz.com',
+	'https://node-processor.vispera-dz.com',
+]);
+
+const corsOptions = {
+	origin: (origin, callback) => {
+		if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+		return callback(new Error(`Origin ${origin} not allowed by CORS`));
+	},
+	methods: ['GET', 'POST', 'OPTIONS'],
+};
+
+app.use(cors(corsOptions));
+// The cors middleware already answers preflight requests; keep this line simple to
+// avoid creating invalid wildcard routes under Express.
 app.use(express.json());
 
 // ────────────────────────────────────────────────────────────────
@@ -436,10 +453,15 @@ const makeAttachment = ({ filename, buffer }) => ({
 });
 
 app.post('/api/process', upload.array('files'), async (req, res) => {
+	console.log('🔥 API ENDPOINT HIT - Request received');
 	try {
 		const files = req.files;
 		const opts  = JSON.parse(req.body.options || '{}');
 		const email = req.body.email;
+		
+		console.log('📁 Files:', files?.length || 0);
+		console.log('⚙️ Options:', opts);
+		console.log('📧 Email:', email);
 
 		if (!files?.length)  return res.status(400).json({ error: 'No files uploaded' });
 		if (!/@/.test(email||'')) return res.status(400).json({ error: 'Valid email required' });
@@ -499,4 +521,4 @@ app.use((err, _req, res, _next) => {
 // ────────────────────────────────────────────────────────────────
 //  Boot
 // ────────────────────────────────────────────────────────────────
-app.listen(PORT, () => console.log(`🚀  Server running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀  Server running on port ${PORT} and accessible from outside`));

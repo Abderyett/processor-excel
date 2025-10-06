@@ -51,8 +51,8 @@ const FileProcessor: React.FC = () => {
 	const [email, setEmail] = useState<string>('');
 	const [progress, setProgress] = useState<string>('');
 
-	// 👉  UPDATE HERE if you deploy the API somewhere else
-	const API_URL = 'https://node-processor.vispera-dz.com';
+	// 👉  Update via Vite env var when deploying
+	const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 	/* ────────────────────────────────  File handlers  */
 	const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
