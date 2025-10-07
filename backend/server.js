@@ -13,24 +13,17 @@ dotenv.config();
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
-const allowedOrigins = new Set([
-	'http://localhost:5173',
-	'http://127.0.0.1:5173',
-	'https://processor.vispera-dz.com',
-	'https://node-processor.vispera-dz.com',
-]);
-
 const corsOptions = {
-	origin: (origin, callback) => {
-		if (!origin || allowedOrigins.has(origin)) return callback(null, true);
-		return callback(new Error(`Origin ${origin} not allowed by CORS`));
-	},
+	origin: [
+		'http://localhost:5173',
+		'http://127.0.0.1:5173',
+		'https://processor.vispera-dz.com',
+		'https://node-processor.vispera-dz.com',
+	],
 	methods: ['GET', 'POST', 'OPTIONS'],
 };
 
 app.use(cors(corsOptions));
-// The cors middleware already answers preflight requests; keep this line simple to
-// avoid creating invalid wildcard routes under Express.
 app.use(express.json());
 
 // ────────────────────────────────────────────────────────────────
