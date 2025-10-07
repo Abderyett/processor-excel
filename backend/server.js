@@ -177,39 +177,59 @@ const assignProductFromText = (row) => {
 	// Define keyword patterns and their corresponding products
 	const patterns = [
 		{
+			keywords: ['ms marketing', 'master marketing'],
+			product : 'insfag_crm_sale.product_template_ms_mng',
+			company : 'base.main_company',
+		},
+		{
+			keywords: ['ms finance', 'master finance'],
+			product : 'insfag_crm_sale.product_template_ms_fin',
+			company : 'base.main_company',
+		},
+		{
+			keywords: ['ms rh', 'ms ressources humaines', 'master rh', 'master ressources humaines'],
+			product : 'insfag_crm_sale.product_template_ms_rh',
+			company : 'base.main_company',
+		},
+		{
+			keywords: ['ms pharma', 'master pharma', 'master pharma et sante', 'pharma et sante'],
+			product : 'insfag_crm_sale.product_template_ms_msph',
+			company : 'base.main_company',
+		},
+		{
 			keywords: ['dmb', 'digital marketing', 'marketing digital'],
-			product: 'insfag_crm_sale.product_template_mba_dmk',
-			company: 'base.main_company'
+			product : 'insfag_crm_sale.product_template_mba_dmk',
+			company : 'base.main_company',
 		},
 		{
 			keywords: ['marketing'],
-			product: 'insfag_crm_sale.product_template_ms_mrk',
-			company: 'base.main_company'
+			product : 'insfag_crm_sale.product_template_ms_mrk',
+			company : 'base.main_company',
 		},
 		{
 			keywords: ['rh', 'ressources humaines', 'resources humaines'],
-			product: 'insfag_crm_sale.product_template_ms_rh',
-			company: 'base.main_company'
+			product : 'insfag_crm_sale.product_template_ms_rh',
+			company : 'base.main_company',
 		},
 		{
 			keywords: ['finance', 'financier'],
-			product: 'insfag_crm_sale.product_template_ms_fin',
-			company: 'base.main_company'
+			product : 'insfag_crm_sale.product_template_ms_fin',
+			company : 'base.main_company',
 		},
 		{
 			keywords: ['master assurances', 'mma', 'assurance'],
-			product: 'insfag_crm_sale.product_template_ms_mas',
-			company: 'base.main_company'
+			product : 'insfag_crm_sale.product_template_ms_mas',
+			company : 'base.main_company',
 		},
 		{
 			keywords: ['agent general d assurance', 'agent general dassurance', 'aga'],
-			product: 'insfag_crm_sale.product_template_bac_aga',
-			company: 'base.main_company'
+			product : 'insfag_crm_sale.product_template_bac_aga',
+			company : 'base.main_company',
 		},
 		{
 			keywords: ['digital'],
-			product: 'insfag_crm_sale.product_template_mba_dmk',
-			company: 'base.main_company'
+			product : 'insfag_crm_sale.product_template_mba_dmk',
+			company : 'base.main_company',
 		}
 	];
 
@@ -364,6 +384,27 @@ const processInsagCneIf = (wbs) => {
 				if (r.form_name !== undefined) { r.opportunité = r.form_name; delete r.form_name; }
 				if (r.opportunité && String(r.opportunité).includes('MBA Global CNE-copy'))
 					r.opportunité = 'MBA Global CNE';
+
+				if (r.opportunité) {
+					const normalizedOpp = normalizeText(r.opportunité);
+					if (normalizedOpp.includes('ms marketing')) {
+						r.opportunité = 'MS Marketing';
+						r.company = 'base.main_company';
+						r['product cible'] = 'insfag_crm_sale.product_template_ms_mng';
+					} else if (normalizedOpp.includes('ms finance')) {
+						r.opportunité = 'MS Finance';
+						r.company = 'base.main_company';
+						r['product cible'] = 'insfag_crm_sale.product_template_ms_fin';
+					} else if (normalizedOpp.includes('ms rh') || normalizedOpp.includes('ms ressources humaines')) {
+						r.opportunité = 'MS Ressources Humaines';
+						r.company = 'base.main_company';
+						r['product cible'] = 'insfag_crm_sale.product_template_ms_rh';
+					} else if (normalizedOpp.includes('ms pharma') || normalizedOpp.includes('master pharma') || normalizedOpp.includes('pharma et sante')) {
+						r.opportunité = 'MS Pharma et Santé';
+						r.company = 'base.main_company';
+						r['product cible'] = 'insfag_crm_sale.product_template_ms_msph';
+					}
+				}
 
 				r.bu = 'insfag_crm_sale.business_unit_diploma_courses';
 				if (r.opportunité === 'MBA Global CNE') {
