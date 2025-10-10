@@ -314,7 +314,7 @@ const FileProcessor: React.FC = () => {
 									},
 									{
 										id: 'insagCneIf',
-										title: 'Insag CNE IF Gmba Processing',
+										title: 'MBA & Master',
 										desc: 'Adds CRM columns and product mappings',
 									},
 								] as const
