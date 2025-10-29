@@ -371,18 +371,20 @@ const processInsagCneIf = (wbs) => {
 					r.company = 'insfag_root.secondary_company';
 				}
 
-				// Skip records that don't match any of the listed opportunities
-				// (MBA Global CNE, MBA Global Alger, Executive MBA Finance)
-				if (!hasRequiredFields) {
-					return; // Skip this record - don't add source, equipe commercial, etc.
-				}
-
-				// Only set default source and equipe commercial for records with required fields
-				if (!r.source) {
-					r.source = '__export__.utm_source_11_b17eb5a0';
-				}
-				if (!r['Equipe commercial']) {
-					r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
+				// Only add default source, equipe commercial for records with required fields (listed opportunities)
+				if (hasRequiredFields) {
+					if (!r.source) {
+						r.source = '__export__.utm_source_11_b17eb5a0';
+					}
+					if (!r['Equipe commercial']) {
+						r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
+					}
+				} else {
+					// For unlisted opportunities: skip if they don't have source, equipe commercial, or product cible
+					// OR if the form name contains CNE
+					if (formNameContainsCNE || (!r.source && !r['Equipe commercial'] && !r['product cible'])) {
+						return; // Skip this record
+					}
 				}
 
 				out.push(r);
