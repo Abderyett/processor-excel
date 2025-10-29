@@ -2,39 +2,34 @@
 //  server.js  –  File processor + email sender + Compare & Clean
 //               UPDATED (v3): Fixed CORS + Enhanced Error Handling
 // ────────────────────────────────────────────────────────────────
-const express      = require('express');
-const multer       = require('multer');
-const XLSX         = require('xlsx');
-const nodemailer   = require('nodemailer');
-const cors         = require('cors');
-const dotenv       = require('dotenv');
+const express = require('express');
+const multer = require('multer');
+const XLSX = require('xlsx');
+const nodemailer = require('nodemailer');
+const cors = require('cors');
+const dotenv = require('dotenv');
 
 dotenv.config();
-const app  = express();
+const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ────────────────────────────────────────────────────────────────
 //  Enhanced CORS Configuration
 // ────────────────────────────────────────────────────────────────
 const corsOptions = {
-  origin: [
-    'https://processor.vispera-dz.com',
-    'https://node-processor.vispera-dz.com',
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:3001',
-    // Add any other frontend domains you might use
-  ],
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: [
-    'Origin',
-    'X-Requested-With',
-    'Content-Type',
-    'Accept',
-    'Authorization',
-  ],
-  credentials: true,
-  optionsSuccessStatus: 200, // For legacy browser support
+	origin: [
+		'https://processor.vispera-dz.com',
+		'https://node-processor.vispera-dz.com',
+		'http://localhost:3000',
+		'http://localhost:5173',
+		'http://localhost:5174',
+		'http://localhost:3001',
+		// Add any other frontend domains you might use
+	],
+	methods: ['GET', 'POST', 'OPTIONS'],
+	allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
+	credentials: true,
+	optionsSuccessStatus: 200, // For legacy browser support
 };
 
 app.use(cors(corsOptions));
@@ -44,8 +39,8 @@ app.options('*', cors(corsOptions));
 
 // Request logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.get('origin')}`);
-  next();
+	console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.get('origin')}`);
+	next();
 });
 
 app.use(express.json());
@@ -55,7 +50,7 @@ app.use(express.json());
 // ────────────────────────────────────────────────────────────────
 const upload = multer({
 	storage: multer.memoryStorage(),
-	limits : { fileSize: 50 * 1024 * 1024, files: 10 },
+	limits: { fileSize: 50 * 1024 * 1024, files: 10 },
 	fileFilter: (req, file, cb) => {
 		const okMime = [
 			'application/vnd.ms-excel',
@@ -74,26 +69,26 @@ if (!process.env.EMAIL_USER || !(process.env.EMAIL_PASS || process.env.EMAIL_PAS
 	throw new Error('EMAIL_USER and EMAIL_PASS (or EMAIL_PASSWORD) must be set in .env');
 
 const createTransporter = nodemailer.createTransport({
-	host  : 'smtp.gmail.com',
-	port  : 465,
+	host: 'smtp.gmail.com',
+	port: 465,
 	secure: true,
-	auth  : {
+	auth: {
 		user: process.env.EMAIL_USER,
 		pass: process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD,
 	},
 	// Add connection timeout
 	connectionTimeout: 60000, // 1 minute
-	socketTimeout: 60000,     // 1 minute
+	socketTimeout: 60000, // 1 minute
 });
 
 // Test email connection on startup
 const testEmailConnection = async () => {
-  try {
-    await createTransporter.verify();
-    console.log('✅ Email transporter verified');
-  } catch (error) {
-    console.error('❌ Email transporter verification failed:', error.message);
-  }
+	try {
+		await createTransporter.verify();
+		console.log('✅ Email transporter verified');
+	} catch (error) {
+		console.error('❌ Email transporter verification failed:', error.message);
+	}
 };
 
 // ────────────────────────────────────────────────────────────────
@@ -101,12 +96,19 @@ const testEmailConnection = async () => {
 // ────────────────────────────────────────────────────────────────
 const getTodayDate = () => {
 	const d = new Date();
-	return `${String(d.getDate()).padStart(2, '0')}_${String(d.getMonth() + 1).padStart(2, '0')}_${d.getFullYear()}`;
+	return `${String(d.getDate()).padStart(2, '0')}_${String(d.getMonth() + 1).padStart(
+		2,
+		'0'
+	)}_${d.getFullYear()}`;
 };
 
 const readFileAsWorkbook = (buffer, fn) => {
-	try             { return XLSX.read(buffer, { type: 'buffer', cellDates: true }); }
-	catch (e)       { console.error(`Error reading ${fn}:`, e); throw new Error(`Cannot read ${fn}`); }
+	try {
+		return XLSX.read(buffer, { type: 'buffer', cellDates: true });
+	} catch (e) {
+		console.error(`Error reading ${fn}:`, e);
+		throw new Error(`Cannot read ${fn}`);
+	}
 };
 
 const processRow = (row, cols) => {
@@ -120,49 +122,54 @@ const processRow = (row, cols) => {
 ────────────────────────────────────────────────────────────────*/
 const normalisePhone = (row) => {
 	const candidates = [
-		'phone_number', 'phone', 'Phone', 'Phone Number',
-		'phone number', 'Phone_Number', 'PhoneNumber',
+		'phone_number',
+		'phone',
+		'Phone',
+		'Phone Number',
+		'phone number',
+		'Phone_Number',
+		'PhoneNumber',
 	];
 	const key = candidates.find((k) => row[k] !== undefined && row[k] !== '');
 	if (!key) return row;
 
 	// Get the raw phone number and clean it
 	let phone = String(row[key])
-		.replace(/p:\+|p:/gi, '')  // Remove existing prefixes
-		.replace(/\D/g, '')        // Remove all non-digit characters
+		.replace(/p:\+|p:/gi, '') // Remove existing prefixes
+		.replace(/\D/g, '') // Remove all non-digit characters
 		.trim();
 
 	// Remove any country code prefixes
 	if (phone.startsWith('033')) {
-		phone = phone.slice(3);  // Remove 033
+		phone = phone.slice(3); // Remove 033
 	} else if (phone.startsWith('33')) {
-		phone = phone.slice(2);  // Remove 33
+		phone = phone.slice(2); // Remove 33
 	} else if (phone.startsWith('213')) {
-		phone = phone.slice(3);  // Remove 213
+		phone = phone.slice(3); // Remove 213
 	} else if (phone.startsWith('1')) {
-		phone = phone.slice(1);  // Remove any other single digit country code
+		phone = phone.slice(1); // Remove any other single digit country code
 	}
-	
+
 	// Add leading 0 if the number doesn't start with 0 and has 9 digits
 	if (phone.length === 9 && !phone.startsWith('0')) {
 		phone = '0' + phone;
 	}
-	
+
 	// Format to 0770 555 999 pattern (for 10 digits)
 	if (phone.length === 10) {
 		phone = `${phone.slice(0, 4)} ${phone.slice(4, 7)} ${phone.slice(7)}`;
 	}
-	
+
 	// Only update if we have a valid formatted number
 	if (phone.length > 0) {
 		row.phone_number = phone;
 	}
-	
+
 	// Remove the original field if it's different from our canonical field
 	if (key !== 'phone_number') {
 		delete row[key];
 	}
-	
+
 	return row;
 };
 
@@ -170,10 +177,7 @@ const normalisePhone = (row) => {
   Canonicalise FULL NAME
 ────────────────────────────────────────────────────────────────*/
 const normaliseFullName = (row) => {
-	const candidates = [
-		'full_name', 'fullname', 'Full Name', 'Full_Name',
-		'full name', 'FullName',
-	];
+	const candidates = ['full_name', 'fullname', 'Full Name', 'Full_Name', 'full name', 'FullName'];
 	const key = candidates.find((k) => row[k] !== undefined && row[k] !== '');
 	if (!key) return row;
 
@@ -196,9 +200,7 @@ const extractDateFromFilename = (fn) => {
 	const m = fn.match(/(\d{2})_(\d{2})(?:_(\d{4}))?/);
 	if (!m) return null;
 	const [, dd, mm, yyyy] = m;
-	return new Date(parseInt(yyyy || new Date().getFullYear(), 10),
-	                parseInt(mm, 10) - 1,
-	                parseInt(dd, 10));
+	return new Date(parseInt(yyyy || new Date().getFullYear(), 10), parseInt(mm, 10) - 1, parseInt(dd, 10));
 };
 
 const determineNewerFile = (f1, f2) => {
@@ -223,25 +225,36 @@ const compareAndClean = (files) => {
 	wbOlder.SheetNames.forEach((sh) => {
 		XLSX.utils.sheet_to_json(wbOlder.Sheets[sh], { defval: '' }).forEach((row) => {
 			const email =
-				row.email || row.Email || row.EMAIL ||
-				row.email_address || row['Email Address'] ||
-				row.mail || row.Mail;
-			if (typeof email === 'string' && email.includes('@'))
-				olderEmails.add(email.toLowerCase().trim());
+				row.email ||
+				row.Email ||
+				row.EMAIL ||
+				row.email_address ||
+				row['Email Address'] ||
+				row.mail ||
+				row.Mail;
+			if (typeof email === 'string' && email.includes('@')) olderEmails.add(email.toLowerCase().trim());
 		});
 	});
 
 	// Clean newer file
 	const cleaned = [];
-	let dupes = 0, total = 0;
+	let dupes = 0,
+		total = 0;
 	wbNewer.SheetNames.forEach((sh) => {
 		XLSX.utils.sheet_to_json(wbNewer.Sheets[sh], { defval: '' }).forEach((row) => {
 			total++;
 			const email =
-				row.email || row.Email || row.EMAIL ||
-				row.email_address || row['Email Address'] ||
-				row.mail || row.Mail;
-			if (email && olderEmails.has(email.toLowerCase().trim())) { dupes++; return; }
+				row.email ||
+				row.Email ||
+				row.EMAIL ||
+				row.email_address ||
+				row['Email Address'] ||
+				row.mail ||
+				row.Mail;
+			if (email && olderEmails.has(email.toLowerCase().trim())) {
+				dupes++;
+				return;
+			}
 			cleaned.push(row);
 		});
 	});
@@ -249,16 +262,16 @@ const compareAndClean = (files) => {
 	const wbOut = XLSX.utils.book_new();
 	XLSX.utils.book_append_sheet(wbOut, XLSX.utils.json_to_sheet(cleaned), 'Cleaned Data');
 	const base = newer.originalname.replace(/\.(xlsx?|csv)$/i, '');
-	const ext  = newer.originalname.match(/\.(xlsx?|csv)$/i)?.[0] || '.xlsx';
+	const ext = newer.originalname.match(/\.(xlsx?|csv)$/i)?.[0] || '.xlsx';
 
 	return {
-		filename          : `${base}_clean${ext}`,
-		buffer            : XLSX.write(wbOut, { type: 'buffer', bookType: 'xlsx', compression: true }),
-		rowCount          : cleaned.length,
-		duplicatesRemoved : dupes,
-		totalOriginalRows : total,
-		olderFileName     : older.originalname,
-		newerFileName     : newer.originalname,
+		filename: `${base}_clean${ext}`,
+		buffer: XLSX.write(wbOut, { type: 'buffer', bookType: 'xlsx', compression: true }),
+		rowCount: cleaned.length,
+		duplicatesRemoved: dupes,
+		totalOriginalRows: total,
+		olderFileName: older.originalname,
+		newerFileName: newer.originalname,
 	};
 };
 
@@ -271,18 +284,41 @@ const processLacInfo = (wbs) => {
 		wb.SheetNames.forEach((sheet) => {
 			XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: '' }).forEach((row) => {
 				const r = processRow(row, [
-					'id','created_time','ad_id','ad_name','adset_id','adset_name',
-					'campaign_id','campaign_name','form_id','platform','is_organic','lead_status',
+					'id',
+					'created_time',
+					'ad_id',
+					'ad_name',
+					'adset_id',
+					'adset_name',
+					'campaign_id',
+					'campaign_name',
+					'form_id',
+					'platform',
+					'is_organic',
+					'lead_status',
 				]);
 
 				r.Type = 'Piste';
-				if (r.form_name !== undefined) { r.opportunité = r.form_name; delete r.form_name; }
+				if (r.form_name !== undefined) {
+					r.opportunité = r.form_name;
+					delete r.form_name;
+				}
 
 				if (r.opportunité) {
 					const v = String(r.opportunité).toLowerCase();
-					if (v.includes('linfo') || v.includes('licence info') || v.includes('licence informatique') || v.includes('licence info 2025'))
+					if (
+						v.includes('linfo') ||
+						v.includes('licence info') ||
+						v.includes('licence informatique') ||
+						v.includes('licence info 2025')
+					)
 						r.opportunité = 'Licence Informatique';
-					else if (v.includes('lac') || v.includes('licence commerce') || v.includes('licence science commerciales') || v.includes('licence sciences commerciales année 25-26'))
+					else if (
+						v.includes('lac') ||
+						v.includes('licence commerce') ||
+						v.includes('licence science commerciales') ||
+						v.includes('licence sciences commerciales année 25-26')
+					)
 						r.opportunité = 'Licence Science Commercial et marketing';
 					else if (v.includes('lfc') || v.includes('licence finance'))
 						r.opportunité = 'Licence Finance et Comptabilité';
@@ -298,19 +334,32 @@ const processLacInfo = (wbs) => {
 	XLSX.utils.book_append_sheet(wbNew, XLSX.utils.json_to_sheet(out), 'Processed Data');
 	return {
 		filename: `ads_ifag_${getTodayDate()}.xlsx`,
-		buffer  : XLSX.write(wbNew, { type: 'buffer', bookType: 'xlsx', compression: true }),
+		buffer: XLSX.write(wbNew, { type: 'buffer', bookType: 'xlsx', compression: true }),
 		rowCount: out.length,
 	};
 };
 
 const processInsagCneIf = (wbs) => {
 	const out = [];
+	let totalRows = 0;
+	let skippedRows = 0;
+
 	wbs.forEach((wb) => {
 		wb.SheetNames.forEach((sheet) => {
 			XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: '' }).forEach((row) => {
+				totalRows++;
 				const r = processRow(row, [
-					'id','created_time','ad_id','ad_name','adset_id','adset_name',
-					'campaign_id','campaign_name','form_id','is_organic','platform',
+					'id',
+					'created_time',
+					'ad_id',
+					'ad_name',
+					'adset_id',
+					'adset_name',
+					'campaign_id',
+					'campaign_name',
+					'form_id',
+					'is_organic',
+					'platform',
 				]);
 
 				// Store original form_name for CNE check
@@ -320,6 +369,10 @@ const processInsagCneIf = (wbs) => {
 					r.opportunité = r.form_name;
 					delete r.form_name;
 				}
+
+				console.log(
+					`Row ${totalRows}: opportunité="${r.opportunité}", originalFormName="${originalFormName}"`
+				);
 
 				// Fix naming conventions
 				if (r.opportunité) {
@@ -348,8 +401,10 @@ const processInsagCneIf = (wbs) => {
 					r.company = 'insfag_root.secondary_company';
 					r['product cible'] = 'insfag_crm_sale.product_template_mba_mos';
 					hasRequiredFields = true;
-				} else if (String(r.opportunité || '').includes('MBA Global Octobre 24') ||
-				           String(r.opportunité || '').includes('MBA Global Alger')) {
+				} else if (
+					String(r.opportunité || '').includes('MBA Global Octobre 24') ||
+					String(r.opportunité || '').includes('MBA Global Alger')
+				) {
 					r.company = 'base.main_company';
 					r.source = '__export__.utm_source_11_b17eb5a0';
 					r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
@@ -371,8 +426,16 @@ const processInsagCneIf = (wbs) => {
 					r.company = 'insfag_root.secondary_company';
 				}
 
-				// Only add default source, equipe commercial for records with required fields (listed opportunities)
+				// Skip records with CNE in form name (unless they're listed opportunities)
+				if (formNameContainsCNE && !hasRequiredFields) {
+					console.log(`  → SKIPPED (form name contains CNE but not a listed opportunity)`);
+					skippedRows++;
+					return;
+				}
+
+				// Only add default source, equipe commercial for listed opportunities
 				if (hasRequiredFields) {
+					console.log(`  → Listed opportunity, adding defaults`);
 					if (!r.source) {
 						r.source = '__export__.utm_source_11_b17eb5a0';
 					}
@@ -380,23 +443,25 @@ const processInsagCneIf = (wbs) => {
 						r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
 					}
 				} else {
-					// For unlisted opportunities: skip if they don't have source, equipe commercial, or product cible
-					// OR if the form name contains CNE
-					if (formNameContainsCNE || (!r.source && !r['Equipe commercial'] && !r['product cible'])) {
-						return; // Skip this record
-					}
+					console.log(`  → Unlisted opportunity, no defaults added`);
 				}
 
+				console.log(`  → INCLUDED in output`);
 				out.push(r);
 			});
 		});
 	});
 
+	console.log(`\n=== ProcessInsagCneIf Summary ===`);
+	console.log(`Total rows processed: ${totalRows}`);
+	console.log(`Rows skipped: ${skippedRows}`);
+	console.log(`Rows included: ${out.length}`);
+
 	const wbNew = XLSX.utils.book_new();
 	XLSX.utils.book_append_sheet(wbNew, XLSX.utils.json_to_sheet(out), 'Processed Data');
 	return {
 		filename: `ads_insag_${getTodayDate()}.xlsx`,
-		buffer  : XLSX.write(wbNew, { type: 'buffer', bookType: 'xlsx', compression: true }),
+		buffer: XLSX.write(wbNew, { type: 'buffer', bookType: 'xlsx', compression: true }),
 		rowCount: out.length,
 	};
 };
@@ -407,20 +472,39 @@ const processAwareness = (wbs) => {
 		wb.SheetNames.forEach((sheet) => {
 			XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: '' }).forEach((row) => {
 				const r = processRow(row, [
-					'id','created_time','ad_id','ad_name','adset_id','adset_name',
-					'campaign_id','campaign_name','form_id','form_name','is_organic',
+					'id',
+					'created_time',
+					'ad_id',
+					'ad_name',
+					'adset_id',
+					'adset_name',
+					'campaign_id',
+					'campaign_name',
+					'form_id',
+					'form_name',
+					'is_organic',
 				]);
 
-				if (r.platform !== undefined) { r.Type = 'Piste'; delete r.platform; }
+				if (r.platform !== undefined) {
+					r.Type = 'Piste';
+					delete r.platform;
+				}
 
 				const longCol = 'par_quelles_formation_êtes-vous_intéressé_?';
-				if (r[longCol] !== undefined) { r.opportunité = r[longCol]; delete r[longCol]; }
+				if (r[longCol] !== undefined) {
+					r.opportunité = r[longCol];
+					delete r[longCol];
+				}
 
 				if (r.opportunité) {
 					const v = String(r.opportunité).toLowerCase();
 					if (v.includes('linfo') || v.includes('licence info') || v.includes('licence_informatique'))
 						r.opportunité = 'Licence informatique';
-					else if (v.includes('lac') || v.includes('licence commerce') || v.includes('licence_commerce_&_marketing'))
+					else if (
+						v.includes('lac') ||
+						v.includes('licence commerce') ||
+						v.includes('licence_commerce_&_marketing')
+					)
 						r.opportunité = 'Licence Science Commercial et marketing';
 					else if (v.includes('lfc') || v.includes('licence_finance_et_comptabilité'))
 						r.opportunité = 'Licence Finance et Comptabilité';
@@ -440,7 +524,7 @@ const processAwareness = (wbs) => {
 	XLSX.utils.book_append_sheet(wbNew, XLSX.utils.json_to_sheet(out), 'Processed Data');
 	return {
 		filename: `ads_awareness_ifag_${getTodayDate()}.xlsx`,
-		buffer  : XLSX.write(wbNew, { type: 'buffer', bookType: 'xlsx', compression: true }),
+		buffer: XLSX.write(wbNew, { type: 'buffer', bookType: 'xlsx', compression: true }),
 		rowCount: out.length,
 	};
 };
@@ -450,9 +534,9 @@ const processAwareness = (wbs) => {
 // ────────────────────────────────────────────────────────────────
 const makeAttachment = ({ filename, buffer }) => ({
 	filename,
-	content     : buffer.toString('base64'),
-	encoding    : 'base64',
-	contentType : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+	content: buffer.toString('base64'),
+	encoding: 'base64',
+	contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 });
 
 // ────────────────────────────────────────────────────────────────
@@ -461,30 +545,30 @@ const makeAttachment = ({ filename, buffer }) => ({
 app.post('/api/process', upload.array('files'), async (req, res) => {
 	// Set timeout for long-running operations
 	req.setTimeout(300000); // 5 minutes
-	
+
 	try {
 		console.log('Processing request:', {
 			filesCount: req.files?.length || 0,
 			email: req.body.email ? 'provided' : 'missing',
-			options: req.body.options || 'none'
+			options: req.body.options || 'none',
 		});
 
 		const files = req.files;
-		const opts  = JSON.parse(req.body.options || '{}');
+		const opts = JSON.parse(req.body.options || '{}');
 		const email = req.body.email;
 
 		if (!files?.length) {
 			console.log('Error: No files uploaded');
 			return res.status(400).json({ error: 'No files uploaded' });
 		}
-		
-		if (!/@/.test(email||'')) {
+
+		if (!/@/.test(email || '')) {
 			console.log('Error: Invalid email');
 			return res.status(400).json({ error: 'Valid email required' });
 		}
 
 		const processed = [];
-		const summary   = [];
+		const summary = [];
 
 		if (opts.compareAndClean) {
 			if (files.length !== 2) {
@@ -494,26 +578,28 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 			console.log('Processing compare and clean...');
 			const r = compareAndClean(files);
 			processed.push(r);
-			summary.push(`Compare & Clean → ${r.duplicatesRemoved} duplicates removed (${r.rowCount}/${r.totalOriginalRows} rows kept)`);
+			summary.push(
+				`Compare & Clean → ${r.duplicatesRemoved} duplicates removed (${r.rowCount}/${r.totalOriginalRows} rows kept)`
+			);
 		} else {
 			const wbs = files.map((f) => readFileAsWorkbook(f.buffer, f.originalname));
-			if (opts.lacInfo)    { 
+			if (opts.lacInfo) {
 				console.log('Processing LAC Info...');
-				const r = processLacInfo(wbs);    
-				processed.push(r); 
-				summary.push(`LAC Info: ${r.rowCount} rows`); 
+				const r = processLacInfo(wbs);
+				processed.push(r);
+				summary.push(`LAC Info: ${r.rowCount} rows`);
 			}
-			if (opts.insagCneIf) { 
+			if (opts.insagCneIf) {
 				console.log('Processing Insag CNE IF...');
-				const r = processInsagCneIf(wbs); 
-				processed.push(r); 
-				summary.push(`Insag CNE IF: ${r.rowCount} rows`); 
+				const r = processInsagCneIf(wbs);
+				processed.push(r);
+				summary.push(`Insag CNE IF: ${r.rowCount} rows`);
 			}
-			if (opts.awareness)  { 
+			if (opts.awareness) {
 				console.log('Processing Awareness...');
-				const r = processAwareness(wbs);  
-				processed.push(r); 
-				summary.push(`Awareness: ${r.rowCount} rows`); 
+				const r = processAwareness(wbs);
+				processed.push(r);
+				summary.push(`Awareness: ${r.rowCount} rows`);
 			}
 		}
 
@@ -524,10 +610,10 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 
 		console.log('Sending email with attachments...');
 		await createTransporter.sendMail({
-			from       : `File Processor <${process.env.EMAIL_USER}>`,
-			to         : email,
-			subject    : opts.compareAndClean ? 'Cleaned Excel file' : 'Processed Excel files',
-			html       : `<p>Your files have been processed:</p><ul>${summary.map((s)=>`<li>${s}</li>`).join('')}</ul>`,
+			from: `File Processor <${process.env.EMAIL_USER}>`,
+			to: email,
+			subject: opts.compareAndClean ? 'Cleaned Excel file' : 'Processed Excel files',
+			html: `<p>Your files have been processed:</p><ul>${summary.map((s) => `<li>${s}</li>`).join('')}</ul>`,
 			attachments: processed.map(makeAttachment),
 		});
 
@@ -543,18 +629,18 @@ app.post('/api/process', upload.array('files'), async (req, res) => {
 //  Health + global error handler
 // ────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
-	res.json({ 
-		status: 'OK', 
+	res.json({
+		status: 'OK',
 		timestamp: new Date().toISOString(),
 		cors: 'enabled',
-		email: process.env.EMAIL_USER ? 'configured' : 'missing'
+		email: process.env.EMAIL_USER ? 'configured' : 'missing',
 	});
 });
 
 app.use((err, _req, res, _next) => {
 	console.error('Global error handler:', err);
 	if (err instanceof multer.MulterError) {
-		if (err.code === 'LIMIT_FILE_SIZE')  return res.status(400).json({ error: 'File too large (max 50 MB)' });
+		if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'File too large (max 50 MB)' });
 		if (err.code === 'LIMIT_FILE_COUNT') return res.status(400).json({ error: 'Too many files (max 10)' });
 	}
 	res.status(500).json({ error: err.message });
@@ -564,38 +650,37 @@ app.use((err, _req, res, _next) => {
 //  Enhanced Server Startup
 // ────────────────────────────────────────────────────────────────
 const startServer = async () => {
-  try {
-    // Test email connection
-    await testEmailConnection();
-    
-    const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📧 Email configured for: ${process.env.EMAIL_USER}`);
-      console.log(`🌍 CORS enabled for production domains`);
-      console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-    });
+	try {
+		// Test email connection
+		await testEmailConnection();
 
-    // Graceful shutdown handling
-    process.on('SIGTERM', () => {
-      console.log('SIGTERM received, shutting down gracefully');
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-      });
-    });
+		const server = app.listen(PORT, '0.0.0.0', () => {
+			console.log(`🚀 Server running on port ${PORT}`);
+			console.log(`📧 Email configured for: ${process.env.EMAIL_USER}`);
+			console.log(`🌍 CORS enabled for production domains`);
+			console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+		});
 
-    process.on('SIGINT', () => {
-      console.log('SIGINT received, shutting down gracefully');
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-      });
-    });
+		// Graceful shutdown handling
+		process.on('SIGTERM', () => {
+			console.log('SIGTERM received, shutting down gracefully');
+			server.close(() => {
+				console.log('Server closed');
+				process.exit(0);
+			});
+		});
 
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
+		process.on('SIGINT', () => {
+			console.log('SIGINT received, shutting down gracefully');
+			server.close(() => {
+				console.log('Server closed');
+				process.exit(0);
+			});
+		});
+	} catch (error) {
+		console.error('Failed to start server:', error);
+		process.exit(1);
+	}
 };
 
 startServer();
