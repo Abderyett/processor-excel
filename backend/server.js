@@ -378,8 +378,8 @@ const processInsagCneIf = (wbs) => {
 				if (r.opportunité) {
 					let opp = String(r.opportunité);
 
-					// Change CNE to MBA Global CNE
-					if (opp.includes('MBA Global CNE-copy')) {
+					// Change CNE variations to MBA Global CNE
+					if (opp.includes('MBA Global CNE')) {
 						r.opportunité = 'MBA Global CNE';
 					} else if (opp === 'CNE') {
 						r.opportunité = 'MBA Global CNE';
