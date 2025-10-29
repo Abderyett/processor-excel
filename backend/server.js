@@ -313,22 +313,25 @@ const processInsagCneIf = (wbs) => {
 					'campaign_id','campaign_name','form_id','is_organic','platform',
 				]);
 
-				if (r.form_name !== undefined) { 
-					r.opportunité = r.form_name; 
-					delete r.form_name; 
+				// Store original form_name for CNE check
+				const originalFormName = r.form_name || '';
+
+				if (r.form_name !== undefined) {
+					r.opportunité = r.form_name;
+					delete r.form_name;
 				}
 
 				// Fix naming conventions
 				if (r.opportunité) {
 					let opp = String(r.opportunité);
-					
+
 					// Change CNE to MBA Global CNE
 					if (opp.includes('MBA Global CNE-copy')) {
 						r.opportunité = 'MBA Global CNE';
 					} else if (opp === 'CNE') {
 						r.opportunité = 'MBA Global CNE';
 					}
-					
+
 					// Change MBA Global Octobre to MBA Global Alger
 					if (opp.includes('MBA Global Octobre')) {
 						r.opportunité = 'MBA Global Alger';
@@ -336,32 +339,52 @@ const processInsagCneIf = (wbs) => {
 				}
 
 				r.bu = 'insfag_crm_sale.business_unit_diploma_courses';
-				
+
+				// Track if this record has required fields
+				let hasRequiredFields = false;
+
 				// Handle different MBA Global opportunities with proper product targets
 				if (r.opportunité === 'MBA Global CNE') {
 					r.company = 'insfag_root.secondary_company';
 					r['product cible'] = 'insfag_crm_sale.product_template_mba_mos';
-				} else if (String(r.opportunité || '').includes('MBA Global Octobre 24') || 
+					hasRequiredFields = true;
+				} else if (String(r.opportunité || '').includes('MBA Global Octobre 24') ||
 				           String(r.opportunité || '').includes('MBA Global Alger')) {
 					r.company = 'base.main_company';
 					r.source = '__export__.utm_source_11_b17eb5a0';
 					r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
 					r['product cible'] = 'insfag_crm_sale.product_template_mba_mos';
+					hasRequiredFields = true;
 				} else if (String(r.opportunité || '').includes('Exécutive MBA Finance')) {
 					r.company = 'base.main_company';
 					r['product cible'] = 'insfag_crm_sale.product_template_emba_sfe';
+					hasRequiredFields = true;
 				}
 
 				normaliseRow(r);
-				
-				// Set default source and equipe commercial for all records if not already set
+
+				// Check if form name contains CNE
+				const formNameContainsCNE = String(originalFormName).toLowerCase().includes('cne');
+
+				// If form name contains CNE, set secondary company
+				if (formNameContainsCNE) {
+					r.company = 'insfag_root.secondary_company';
+				}
+
+				// Skip records that don't match any of the listed opportunities
+				// (MBA Global CNE, MBA Global Alger, Executive MBA Finance)
+				if (!hasRequiredFields) {
+					return; // Skip this record - don't add source, equipe commercial, etc.
+				}
+
+				// Only set default source and equipe commercial for records with required fields
 				if (!r.source) {
 					r.source = '__export__.utm_source_11_b17eb5a0';
 				}
 				if (!r['Equipe commercial']) {
 					r['Equipe commercial'] = '__export__.crm_team_6_3cd792db';
 				}
-				
+
 				out.push(r);
 			});
 		});
