@@ -163,6 +163,7 @@ const normalisePhone = (row) => {
 	// Only update if we have a valid formatted number
 	if (phone.length > 0) {
 		row.phone_number = phone;
+		row.work_phone_number = phone; // Also set work_phone_number to the same value
 	}
 
 	// Remove the original field if it's different from our canonical field
